@@ -57,15 +57,93 @@ app.post("/api/users/:_id/exercises", (req, res) => {
 });
 
 app.get("/api/users", (req, res) => {
-
+  User.find({})
+    .then(data => {
+      res.send(data);
+    })
+    .catch(err => console.error(err));
 });
 
-app.get("/api/users/:_id/logs", (req, res) => {
+const validateUser = (req, res, next) => {
+  const { _id } = req.params;
+  User.findById(_id)
+  .then(data => {
+    res.locals.userData = data;
+    next();
+  })
+  .catch(err => console.error(err));
+}
+const validateDate = (date) => {
+  let dateVal = new Date(date);
+  if(isNaN(dateVal))
+    return false;
+  return true;
+}
+const validateQueryParams = (from, to, limit) => {
+  if(!(from) || !(to) && !(limit))
+    return false;
+
+  if(!validateDate(from))
+    return false;
+  
+  if(!validateDate(to))
+    return false;
+
+  if(/^[0-9]+$/.test(limit) === false)
+    return false;
+
+  return true;
+}
+const formatLogEntries = (exerciseData) => {
+  let logArray = [];
+  let logCount = 0;
+  for(let i in exerciseData) {
+    logCount++;
+    logArray.push({
+      "description": exerciseData[i].description,
+      "duration": exerciseData[i].duration,
+      "date": new Date(exerciseData[i].logDate).toDateString()
+    });
+  }
+  return { logCount, logArray };
+}
+app.get("/api/users/:_id/logs", validateUser, (req, res) => {
+  const { _id, username } = res.locals.userData;
   let { from, to, limit } = req.query;
 
+  if(validateQueryParams(from, to, limit))
+    return Exercise.find({
+      userId: _id,
+      logDate: {
+        $gte: new Date(from),
+        $lt: new Date(to)
+      }
+    })
+    .limit(Number(limit))
+    .exec()
+    .then(exerciseData => {
+      const { logCount, logArray } = formatLogEntries(exerciseData);
+      return res.json({
+        "_id": _id,
+        "username": username,
+        "count": logCount,
+        "log": logArray
+      });
+    })
+    .catch(err => console.error(err));
+  
+  return Exercise.find({userId: _id})
+    .then(exerciseData => {
+      const { logCount, logArray } = formatLogEntries(exerciseData);
+      return res.json({
+        "_id": _id,
+        "username": username,
+        "count": logCount,
+        "log": logArray
+      });
+    })
+    .catch(err => console.error(err));
 });
-
-
 
 const listener = app.listen(process.env.PORT || 3000, () => {
   console.log('Your app is listening on port ' + listener.address().port)
