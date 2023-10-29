@@ -79,17 +79,14 @@ const validateDate = (date) => {
     return false;
   return true;
 }
-const validateQueryParams = (from, to, limit) => {
-  if(!(from) || !(to) && !(limit))
+const validateDateQueryParams = (from, to) => {
+  if(!(from) || !(to))
     return false;
 
   if(!validateDate(from))
     return false;
   
   if(!validateDate(to))
-    return false;
-
-  if(/^[0-9]+$/.test(limit) === false)
     return false;
 
   return true;
@@ -108,33 +105,29 @@ const formatLogEntries = (exerciseData) => {
   return { logCount, logArray };
 }
 app.get("/api/users/:_id/logs", validateUser, (req, res) => {
+  console.log(req.get('host'), req.url)
   const { _id, username } = res.locals.userData;
   let { from, to, limit } = req.query;
 
-  if(validateQueryParams(from, to, limit))
-    return Exercise.find({
+  let query = (validateDateQueryParams(from, to)) ?
+    Exercise.find({
       userId: _id,
       logDate: {
         $gte: new Date(from),
         $lt: new Date(to)
       }
-    })
-    .limit(Number(limit))
+    }) :
+    Exercise.find({userId: _id});
+
+  if(/^[0-9]+$/.test(limit))
+    query.limit(Number(limit));
+    
+  return query    
     .exec()
     .then(exerciseData => {
+      console.log('-- here --');
       const { logCount, logArray } = formatLogEntries(exerciseData);
-      return res.json({
-        "_id": _id,
-        "username": username,
-        "count": logCount,
-        "log": logArray
-      });
-    })
-    .catch(err => console.error(err));
-  
-  return Exercise.find({userId: _id})
-    .then(exerciseData => {
-      const { logCount, logArray } = formatLogEntries(exerciseData);
+      console.log(logCount, logArray);
       return res.json({
         "_id": _id,
         "username": username,
